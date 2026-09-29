@@ -1,0 +1,29 @@
+<!-- ARIFA Assistant widget: paste before </body>. Set API_URL to your deployed backend (HTTPS). -->
+<style>
+#arifa-btn{position:fixed;right:20px;bottom:20px;background:#8b0000;color:#fff;border:0;border-radius:999px;padding:14px 20px;font:600 15px system-ui;cursor:pointer;z-index:9999}
+#arifa-box{display:none;position:fixed;right:20px;bottom:80px;width:340px;max-width:calc(100vw - 40px);height:460px;background:#fff;border:1px solid #ddd;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.2);z-index:9999;flex-direction:column;font:14px system-ui}
+#arifa-msgs{flex:1;overflow:auto;padding:12px}
+.arifa-m{margin:6px 0;padding:8px 10px;border-radius:10px;max-width:85%;white-space:pre-wrap}
+.arifa-u{background:#8b0000;color:#fff;margin-left:auto}.arifa-b{background:#f1f1f1}
+#arifa-form{display:flex;border-top:1px solid #ddd}#arifa-in{flex:1;border:0;padding:12px;font:inherit;outline:0}
+#arifa-form button{border:0;background:none;color:#8b0000;font-weight:700;padding:0 14px;cursor:pointer}
+</style>
+<button id="arifa-btn">Ask ARIFA / Uliza ARIFA</button>
+<div id="arifa-box"><div id="arifa-msgs"></div>
+<form id="arifa-form"><input id="arifa-in" maxlength="500" placeholder="Ask about ARIFA... / Uliza kuhusu ARIFA..."><button>Send</button></form></div>
+<script>
+const API_URL="https://YOUR-BACKEND-DOMAIN/chat";
+const box=document.getElementById("arifa-box"),msgs=document.getElementById("arifa-msgs"),inp=document.getElementById("arifa-in");
+let history=[];
+document.getElementById("arifa-btn").onclick=()=>{box.style.display=box.style.display==="flex"?"none":"flex";
+ if(!msgs.children.length)add("bot","Hello! I can answer questions about ARIFA in English or Kiswahili. / Habari! Naweza kujibu maswali kuhusu ARIFA kwa Kiingereza au Kiswahili.");};
+function add(who,text,sources){const d=document.createElement("div");d.className="arifa-m "+(who==="user"?"arifa-u":"arifa-b");d.textContent=text;
+ (sources||[]).forEach(u=>{const a=document.createElement("a");a.href=u;a.target="_blank";a.rel="noopener";a.textContent="\n"+u;a.style.display="block";a.style.fontSize="12px";d.appendChild(a)});
+ msgs.appendChild(d);msgs.scrollTop=msgs.scrollHeight;return d}
+document.getElementById("arifa-form").onsubmit=async e=>{e.preventDefault();const q=inp.value.trim();if(!q)return;inp.value="";add("user",q);
+ const w=add("bot","...");
+ try{const r=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:q,history})});
+  if(!r.ok)throw 0;const j=await r.json();w.remove();add("bot",j.answer,j.sources);
+  history.push({role:"user",content:q},{role:"assistant",content:j.answer});history=history.slice(-6);
+ }catch{w.textContent="Sorry, something went wrong. Please email info@arifa.org. / Samahani, kuna hitilafu. Tuandikie info@arifa.org."}};
+</script>
