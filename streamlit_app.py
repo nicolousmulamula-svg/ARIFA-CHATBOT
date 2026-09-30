@@ -1,6 +1,6 @@
 """
-ARIFA Chatbot — Streamlit + Groq (BURE)
-========================================
+ARIFA Chatbot — Streamlit + Groq (kupitia Cloudflare AI Gateway)
+==================================================================
 Kwa testing ya haraka ya ARIFA chatbot.
 
 Run:
@@ -10,7 +10,9 @@ Inahitaji:
     - arifa_index/ folda (kutoka ingest.py)
     - system_prompt.txt
     - sentiment.py (optional)
-    - GROQ_API_KEY environment variable
+    - GROQ_API_KEY (Streamlit Secrets)
+    - CLOUDFLARE_ACCOUNT_ID (Streamlit Secrets)
+    - CLOUDFLARE_GATEWAY_ID (Streamlit Secrets)
 """
 import os
 import streamlit as st
@@ -36,6 +38,19 @@ DEFAULT_MIN_SCORE = float(os.getenv("MIN_SCORE", "0.35"))
 DEFAULT_TOP_K = 5
 
 # ============================================================
+# 2b. HELPER: Pata secrets kutoka Streamlit au env vars
+# ============================================================
+def get_secret(key: str, default: str = "") -> str:
+    """Pata secret kutoka Streamlit secrets au environment variable."""
+    # Jaribu Streamlit secrets kwanza (kwa Streamlit Cloud)
+    try:
+        return st.secrets[key]
+    except (KeyError, FileNotFoundError):
+        pass
+    # Fallback: environment variable (kwa local)
+    return os.getenv(key, default)
+
+# ============================================================
 # 3. LOAD MODELS (cached — only once)
 # ============================================================
 @st.cache_resource(show_spinner="Loading models... / Inapakia modeli...")
@@ -43,7 +58,20 @@ def load_models():
     """Load embedder, collection, Groq client, and system prompt (once)."""
     embedder = SentenceTransformer("BAAI/bge-m3")
     col = chromadb.PersistentClient(path="./arifa_index").get_collection("arifa")
-    groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+    
+    # === BADILISHO: Tumia Cloudflare AI Gateway ===
+    groq_api_key = get_secret("GROQ_API_KEY")
+    cf_account_id = get_secret("CLOUDFLARE_ACCOUNT_ID")
+    cf_gateway_id = get_secret("CLOUDFLARE_GATEWAY_ID")
+    
+    if cf_account_id and cf_gateway_id:
+        # Tumia Cloudflare AI Gateway (inaepuka 403 Access Denied)
+        base_url = f"https://gateway.ai.cloudflare.com/v1/{cf_account_id}/{cf_gateway_id}/groq"
+        groq_client = Groq(api_key=groq_api_key, base_url=base_url)
+    else:
+        # Fallback: Groq moja kwa moja (kwa local testing)
+        groq_client = Groq(api_key=groq_api_key)
+    
     with open("system_prompt.txt", encoding="utf-8") as f:
         system = f.read()
     return embedder, col, groq_client, system
@@ -52,7 +80,12 @@ try:
     embedder, col, groq_client, SYSTEM = load_models()
 except Exception as e:
     st.error(f"❌ Imeshindwa kupakia modeli / Failed to load models: {e}")
-    st.info("💡 Hakikisha umefanya: `python ingest.py` kwanza, na `GROQ_API_KEY` imewekwa.")
+    st.info(
+        "💡 Hakikisha:\n"
+        "- `python ingest.py` imeendeshwa\n"
+        "- `GROQ_API_KEY` imewekwa\n"
+        "- `CLOUDFLARE_ACCOUNT_ID` na `CLOUDFLARE_GATEWAY_ID` zimewekwa (kwa Streamlit Cloud)"
+    )
     st.stop()
 
 # ============================================================
@@ -97,12 +130,19 @@ with st.sidebar:
     st.caption(f"✅ Collection: `arifa`")
     st.caption(f"{'✅' if HAS_SENTIMENT else '❌'} Sentiment: `sentiment.py`")
     st.caption(f"✅ LLM: `{MODEL}` (Groq — BURE)")
-    st.caption(f"{'✅' if os.getenv('GROQ_API_KEY') else '❌'} API Key: `{'set' if os.getenv('GROQ_API_KEY') else 'MISSING'}`")
+    
+    # Onyesha hali ya Cloudflare AI Gateway
+    if get_secret("CLOUDFLARE_ACCOUNT_ID") and get_secret("CLOUDFLARE_GATEWAY_ID"):
+        st.caption("✅ Cloudflare AI Gateway: `ON`")
+    else:
+        st.caption("⚠️ Cloudflare AI Gateway: `OFF`")
+    
+    st.caption(f"{'✅' if get_secret('GROQ_API_KEY') else '❌'} API Key: `{'set' if get_secret('GROQ_API_KEY') else 'MISSING'}`")
 
 # ============================================================
 # 6. HEADER
 # ============================================================
-st.title(" ARIFA Assistant")
+st.title("🇹🇿 ARIFA TZ Assistant")
 st.caption(
     "Uliza kuhusu ARIFA kwa Kiingereza au Kiswahili — "
     "utafiti, mafunzo, matukio, ajira na mawasiliano. | "
@@ -233,7 +273,7 @@ if prompt := st.chat_input("Uliza kuhusu ARIFA... / Ask about ARIFA..."):
                     ),
                 })
 
-                # 8. Call Groq (BURE)
+                # 8. Call Groq (kupitia Cloudflare AI Gateway)
                 out = groq_client.chat.completions.create(
                     model=MODEL,
                     messages=messages,
@@ -276,6 +316,7 @@ if prompt := st.chat_input("Uliza kuhusu ARIFA... / Ask about ARIFA..."):
                 st.info(
                     "💡 Angalia:\n"
                     "- `GROQ_API_KEY` imewekwa?\n"
+                    "- `CLOUDFLARE_ACCOUNT_ID` na `CLOUDFLARE_GATEWAY_ID` zimewekwa?\n"
                     "- `arifa_index/` ipo? (`python ingest.py`)\n"
                     "- Mtandao unafanya kazi?"
                 )
@@ -285,7 +326,7 @@ if prompt := st.chat_input("Uliza kuhusu ARIFA... / Ask about ARIFA..."):
 # ============================================================
 st.divider()
 st.caption(
-    "🤖 ARIFA Assistant (Groq — BURE) — AI inaweza kukosea. Thibitisha kwenye "
+    "🤖 ARIFA Assistant (Groq + Cloudflare — BURE) — AI inaweza kukosea. Thibitisha kwenye "
     "[arifa.org](https://arifa.org) au info@arifa.org. | "
     "AI can make mistakes — verify on [arifa.org](https://arifa.org)."
 )
