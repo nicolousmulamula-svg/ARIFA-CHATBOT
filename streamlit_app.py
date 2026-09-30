@@ -31,7 +31,7 @@ st.set_page_config(
 # ============================================================
 # 2. CONFIG (environment)
 # ============================================================
-MODEL = os.getenv("LLM_MODEL", "openai/gpt-oss-120b")
+MODEL = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
 DEFAULT_MIN_SCORE = float(os.getenv("MIN_SCORE", "0.35"))
 DEFAULT_TOP_K = 5
 
